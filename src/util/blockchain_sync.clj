@@ -1,116 +1,90 @@
 (ns util.blockchain-sync
   (:require [clojurewerkz.neocons.rest :as nr]
-            [clojurewerkz.neocons.rest.nodes :as nn]
-            [clojurewerkz.neocons.rest.relationships :as nrel]
+            [clojurewerkz.neocons.rest.batch :as nb]
             [clojurewerkz.neocons.rest.cypher :as cy]
-            [clojurewerkz.neocons.rest.index :as ni]
-            [clojurewerkz.neocons.rest.constraints :as nc]
-
-            [taoensso.timbre :as timbre])
-  (:import (com.google.bitcoin.utils BlockFileLoader)
-           (com.google.bitcoin.core Block NetworkParameters Transaction TransactionInput)
-           (com.google.bitcoin.params MainNetParams))
+            [clojurewerkz.neocons.rest.constraints :as nc])
+  (:import [com.google.bitcoin.utils BlockFileLoader]
+           [com.google.bitcoin.core Block NetworkParameters Transaction TransactionInput TransactionOutput]
+           [com.google.bitcoin.params MainNetParams]
+           [clojurewerkz.neocons.rest Connection Neo4JEndpoint])
   (:gen-class))
-
-(timbre/refer-timbre)
 
 (defn- main-chain
   []
   (seq (BlockFileLoader. (MainNetParams.)
                          (BlockFileLoader/getReferenceClientBlockFileList))))
 
+(def uniqid (atom 0))
+(defn- get-uniqid!
+  []
+  (swap! uniqid inc))
+
 (defn- extract-info-tx-input
-  [^TransactionInput in]
-  (let [outpoint (.getOutpoint in)
-        hash (-> outpoint (.getHash) (.toString))
-        index (.getIndex outpoint)]
-    (if (.isCoinBase in)
-      "coinbase"
-      (str index ":" hash))))
+       [^TransactionInput in]
+       (let [outpoint (.getOutpoint in)
+             hash (-> outpoint (.getHash) (.toString))
+             index (.getIndex outpoint)]
+         (when (not (.isCoinBase in)) (str index ":" hash))))
 
-(defn- extract-info-tx
-  [^Transaction tx blk-hash]
-  {:hash    (.getHashAsString tx)
-   :blkhash blk-hash
-   :type    "tx"
-   :inputs  (vec (map extract-info-tx-input (.getInputs tx)))
-   :outputs (map #(str %1 ":" (.getValue %2)) (range) (.getOutputs tx))})
+(defn- batch-tx-out-node
+  [tx-id ix ^TransactionOutput txout]
+  (let [txout-id (get-uniqid!)]
+    [{:method "POST"
+      :to "/node"
+      :body {:index ix :value (.getValue txout)}
+      :id txout-id}
+     {:method "POST"
+      :to (str "{" txout-id "}/labels")
+      :body "TXOUT"}
+     {:method "POST"
+      :to (str "{" tx-id "}/relationships")
+      :body {:to (str "{" txout-id "}") :type "OUTPUTS"}}]))
 
-(defn- extract-info-blk
-  [^Block blk]
-  (let [hash (.getHashAsString blk)
-        prev-hash (-> blk .getPrevBlockHash .toString)
-        date (.getTime blk)
+(defn- batch-tx-node
+  [blk-id ^Transaction tx]
+  (let [tx-id (get-uniqid!)
+        txout-ops (mapcat #(batch-tx-out-node tx-id %1 %2) (range) (.getOutputs tx))]
+    (into [{:method "POST"
+            :to "/node"
+            :body {:hash (.getHashAsString tx)
+                   :txinputs (clojure.string/join "," (map extract-info-tx-input (.getInputs tx)))}
+            :id tx-id}
+           {:method "POST"
+            :to (str "{" tx-id "}/labels")
+            :body "TX"}
+           {:method "POST"
+            :to (str "{" blk-id "}/relationships")
+            :body {:to (str "{" tx-id "}") :type "CONTAINS"}}] txout-ops)))
 
-        txs (map #(extract-info-tx % hash) (.getTransactions blk))]
-    [{:hash hash :date date :prevhash prev-hash :type "block"}
-     txs]))
+(defn- partition-ops
+  [^Connection conn blk-seq]
+  (for [^Block blk blk-seq]
+    (let [blk-id (get-uniqid!)
+          tx-ops (mapcat #(batch-tx-node blk-id %) (.getTransactions blk))]
+      (into [{:method "POST"
+              :to "/node"
+              :body {:hash (.getHashAsString blk)
+                     :date (.getTime (.getTime blk))
+                     :prevblkhash (-> blk .getPrevBlockHash .toString)}
+              :id blk-id}
+             {:method "POST"
+              :to (str "{" blk-id "}/labels")
+              :body "BLOCK"}] tx-ops))))
 
-(defn- set-tx-labels
-  [conn]
-  (cy/tquery conn "MATCH (tx {type: 'tx'}) SET tx:TX, tx.type = NULL RETURN COUNT(tx);"))
+(defn- setup-db
+  [^Connection conn]
+  (cy/tquery conn "CREATE (genesis:BLOCK {hash: \"0000000000000000000000000000000000000000000000000000000000000000\"});"))
 
-(defn- create-tx-indexes
-  [conn]
-  (cy/tquery conn "CREATE INDEX ON :TX(hash)")
-  ;(nc/create-unique conn "TX" :hash) Created problems when chainforking happens
-  )
-
-(defn- set-blk-labels
-  [conn]
-  (cy/tquery conn "MATCH (blk {type: 'block'}) SET blk:BLOCK, blk.type = NULL RETURN COUNT(blk);"))
-
-(defn- create-blk-indexes
-  [conn]
-  (nc/create-unique conn "BLOCK" :hash))
-
-(defn- connect-blocks
-  [conn]
-  ;first remove the prevhash for the genesis block
-  (cy/tquery conn (str "MATCH (genesis:BLOCK)
-                        WHERE HAS (genesis.prevhash)
-                            AND id(genesis) = 0
-                            AND replace(genesis.prevhash, '0', '') = ''
-                        SET genesis.prevhash = NULL
-                        RETURN COUNT(genesis);"))
-
-  ;connect the remaining blocks
-  (cy/tquery conn (str "MATCH (blk:BLOCK)
-                        WHERE HAS (blk.prevhash)
-                            MATCH (prevblk:BLOCK {hash: blk.prevhash})
-                            CREATE (prevblk)-[r:NEXT_BLOCK]->(blk)
-                            SET blk.prevhash = NULL
-                        RETURN COUNT(blk);")))
-
-(defn- connect-tx-to-blocks
-  [conn]
-  (cy/tquery conn (str "MATCH (tx:TX)
-                        WHERE HAS (tx.blkhash)
-                            MATCH (blk:BLOCK {hash: tx.blkhash})
-                            CREATE (blk)-[r:CONTAINS]->(tx)
-                            SET tx.blkhash = NULL
-                        RETURN COUNT(tx);")))
-
-(defn- remove-coinbase-inputs
-  [conn]
-  (cy/tquery conn (str "MATCH (cb:TX {inputs: ['coinbase']})
-                        SET cb.inputs = NULL
-                        RETURN COUNT(cb);")))
-
-(defn- create-tx-outputs
-  [conn]
-  (cy/tquery conn (str "MATCH (tx:TX)
-                        WHERE HAS (tx.outputs)
-                        WITH tx, [output IN tx.outputs | SPLIT(output, ':')] AS outs
-                          FOREACH(output IN outs |
-                            CREATE (tx)-[r:OUTPUTS]->(out:TXOUT {index: TOINT(output[0]), value: TOINT(output[1])}))
-                        SET tx.outputs = NULL
-                        RETURN COUNT(tx);")))
+(defn- setup-indexes
+  [^Connection conn]
+  (println "Creating indexes")
+  (nc/create-unique conn "BLOCK" :hash)
+  (cy/tquery conn "CREATE INDEX ON :TX(hash)"))
 
 (defn- connect-tx-inputs
   [conn]
   (cy/tquery conn (str "MATCH (tx:TX)
-                        WHERE HAS (tx.hash)
+                        WHERE HAS (tx.inputs)
                         WITH tx
                         UNWIND tx.inputs AS input
                         WITH tx, SPLIT(input, ':') AS input
@@ -122,38 +96,13 @@
                         SET tx.inputs = NULL
                         RETURN COUNT(tx);")))
 
-(defn- connect-txs
-  [conn]
-  (doto conn (create-tx-outputs) (connect-tx-inputs)))
-
-(defn- process-partition
-  "Partition is a collection of blocks (a partition from the main-chain)"
-  [conn blk-partition]
-  (let [blk-seq (map extract-info-blk blk-partition)
-        blks-only (map first blk-seq)
-        _ (println (str "Processing partition starting with " (:hash (first blks-only))))
-
-        txs-only (flatten (map second blk-seq))]
-    (doto conn
-      (nn/create-batch blks-only)
-      (nn/create-batch txs-only)
-      (set-blk-labels)
-      (set-tx-labels)
-      (connect-blocks)
-      (connect-tx-to-blocks)
-      (remove-coinbase-inputs)
-      (connect-txs))))
-
 (defn chain-sync
   [conn]
-  (let [ _ (println "Creating indexes")
-         _ (doto conn
-             (create-blk-indexes)
-             (create-tx-indexes))
-
-         partitioned (partition-all 50 (main-chain))
-        _ (doall (map #(process-partition conn %) partitioned))]
-    {}))
+  (setup-db conn)
+  (doseq [ops (map #(partition-ops conn %) (partition-all 4 (main-chain)))]
+    (nb/perform conn ops))
+  ;(setup-indexes conn)
+  )
 
 (defn -main
   [& args]

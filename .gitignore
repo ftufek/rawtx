@@ -12,3 +12,5 @@ pom.xml.asc
 node_modules/
 *.iml
 resources/public/bower/
+40M_CSV/
+test_csv/

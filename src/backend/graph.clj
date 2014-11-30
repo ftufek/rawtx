@@ -6,11 +6,15 @@
             [clojurewerkz.neocons.rest.index :as ni]
             [clojurewerkz.neocons.rest.constraints :as nc]
 
+            [taoensso.timbre :as timbre]
+
             [compojure.core :refer :all]
             [ring.util.response :refer [response resource-response]]))
 
 (def db-url "http://localhost:7474/db/data/")
 (def conn (nr/connect db-url))
+;(def conn nil)
+(timbre/refer-timbre)
 
 (def cqueries
   {:get-num-blk-indexed "MATCH (blk:BLOCK) RETURN COUNT(blk)"
@@ -30,7 +34,7 @@
   [datamap]
   (cons `do
         (for [[qname qval] (eval datamap)]
-          `(defn ~(symbol (name qname))
+          `(defnp ~(symbol (name qname))
              ([conn# params#]
                 (cy/tquery conn# ~qval params#))
              ([conn#]

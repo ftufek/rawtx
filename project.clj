@@ -2,6 +2,7 @@
   :description "graphical blockchain exploration"
   :url "www.rawtx.com"
   :dependencies [[org.clojure/clojure "1.6.0"]
+                 [org.clojure/data.csv "0.1.2"]
                  [compojure "1.1.8"]
                  [org.apache.httpcomponents/httpclient "4.3.2"]
                  [org.clojure/java.jdbc "0.3.4"]

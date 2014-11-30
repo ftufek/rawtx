@@ -1,0 +1,37 @@
+CREATE CONSTRAINT ON (blk:BLOCK) ASSERT blk.hash IS UNIQUE;
+CREATE (genesis:BLOCK {hash: "0000000000000000000000000000000000000000000000000000000000000000"});
+
+CREATE INDEX ON :TX(hash);
+
+-- BLOCK NODES
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS FROM 'file:///tmp/blk-nodes.csv' AS blk
+CREATE (block:BLOCK {hash: blk.hash, date: toInt(blk.date)});
+
+-- BLK RELS
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS FROM 'file:///tmp/blk-rels.csv' AS rels
+MATCH (prevblk:BLOCK {hash: rels.prevhash}), (blk:BLOCK {hash: rels.hash})
+CREATE (prevblk)-[:NEXT_BLOCK]->(blk);
+
+
+-- TX NODES
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS FROM 'file:///tmp/tx-nodes.csv' AS txline
+CREATE (tx:TX {hash: txline.hash})
+WITH tx, SPLIT(txline.outputs, ",") AS outputs
+UNWIND outputs AS output
+WITH tx, SPLIT(output, ":") AS output
+CREATE (tx)-[r:OUTPUTS]->(out:TXOUT {index: TOINT(output[0]), value: TOINT(output[1])});
+
+
+-- TX RELS
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS FROM 'file:///tmp/tx-rels.csv' AS txline
+MATCH (blk:BLOCK {hash: txline.blkhash}), (tx:TX {hash: txline.hash})
+CREATE (blk)-[r:CONTAINS]->(tx)
+WITH tx, SPLIT(txline.inputs, ",") AS inputs
+UNWIND inputs AS input
+WITH tx, SPLIT(input, ":") AS input
+MATCH (txin:TX {hash: input[1]})-[r:OUTPUTS]->(txout:TXOUT {index: TOINT(input[0])})
+CREATE (txout)-[:INPUTS]->(tx);

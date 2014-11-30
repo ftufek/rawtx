@@ -1,0 +1,57 @@
+2014-Nov-02 14:58:22 -0500 Admin INFO [util.blockchain-sync] - Profiling: :util.blockchain-sync/Synch
+                                                 Id      nCalls       Min        Max       MAD      Mean   Time% Time
+:util.blockchain-sync/connect-tx-inputs-immediate_1       6,000     4.0ms    444.0ms    62.0ms   111.0ms      24 668.5s
+              :util.blockchain-sync/set-tx-labels_1       6,000    11.0ms    212.0ms    32.0ms    71.0ms      15 428.9s
+             :util.blockchain-sync/set-blk-labels_1       6,000    11.0ms    615.0ms    32.0ms    70.0ms      15 421.2s
+          :util.blockchain-sync/connect-tx-inputs_1       6,000     3.0ms    218.0ms    23.0ms    45.0ms       9 267.8s
+     :util.blockchain-sync/remove-coinbase-inputs_1       6,000     7.0ms    108.0ms    17.0ms    40.0ms       8 237.7s
+          :util.blockchain-sync/create-tx-outputs_1       6,000     9.0ms    419.0ms    13.0ms    35.0ms       7 208.6s
+          :util.blockchain-sync/connect-remaining_1       6,000     8.0ms    332.0ms    13.0ms    34.0ms       7 206.2s
+       :util.blockchain-sync/connect-tx-to-blocks_1       6,000     8.0ms    399.0ms    13.0ms    33.0ms       7 196.4s
+              :util.blockchain-sync/prune-genesis_1       6,000     2.0ms     99.0ms     1.0ms     4.0ms       1 23.0s
+          :util.blockchain-sync/create-tx-indexes_1           1   885.0ms    885.0ms       0ns   885.0ms       0 885.0ms
+                                         Clock Time                                                          100 2832.5s
+                                     Accounted Time                                                           94 2659.3s
+
+=> {}
+
+
+2014-Nov-04 12:00:30 -0500 Admin INFO [util.blockchain-sync] - Profiling: :util.blockchain-sync/Synch
+                                                 Id      nCalls       Min        Max       MAD      Mean   Time% Time
+              :util.blockchain-sync/set-tx-labels_1       6,000    12.0ms       1.4s   169.0ms   215.0ms      25 1290.2s
+             :util.blockchain-sync/set-blk-labels_1       6,000    13.0ms    981.0ms   165.0ms   212.0ms      25 1271.9s
+          :util.blockchain-sync/connect-tx-inputs_1       6,000     4.0ms       1.2s    65.0ms    86.0ms      10 517.2s
+          :util.blockchain-sync/create-tx-outputs_1       6,000    10.0ms    906.0ms    53.0ms    80.0ms       9 477.5s
+:util.blockchain-sync/connect-tx-inputs-immediate_1       6,000     4.0ms    915.0ms    58.0ms    79.0ms       9 472.1s
+       :util.blockchain-sync/connect-tx-to-blocks_1       6,000     9.0ms    943.0ms    49.0ms    75.0ms       9 449.4s
+          :util.blockchain-sync/connect-remaining_1       6,000     9.0ms    374.0ms    20.0ms    50.0ms       6 300.1s
+              :util.blockchain-sync/extract-info-tx     435,480     7.0μs    173.0ms    23.0μs    33.0μs       0 14.3s
+        :util.blockchain-sync/extract-info-tx-input     623,831     1.0μs     47.0ms     3.0μs     4.0μs       0 2.7s
+             :util.blockchain-sync/extract-info-blk     120,000     3.0μs     19.0ms     6.0μs    10.0μs       0 1.2s
+                                   :timbre/stats-gc           9    66.0ms    201.0ms    36.0ms   129.0ms       0 1.2s
+          :util.blockchain-sync/create-tx-indexes_1           1   872.0ms    872.0ms       0ns   872.0ms       0 872.0ms
+                                         Clock Time                                                          100 5081.3s
+                                     Accounted Time                                                           94 4798.7s
+
+=> {}
+
+
+
+2014-Nov-04 18:20:49 -0500 Admin INFO [util.blockchain-sync] - Profiling: :util.blockchain-sync/Synch
+                                                 Id      nCalls       Min        Max       MAD      Mean   Time% Time
+              :util.blockchain-sync/set-tx-labels_1       6,000    14.0ms       1.3s   135.0ms   184.0ms      24 1106.8s
+             :util.blockchain-sync/set-blk-labels_1       6,000    13.0ms       1.0s   131.0ms   180.0ms      23 1081.7s
+          :util.blockchain-sync/connect-tx-inputs_1       6,000     4.0ms       1.2s    60.0ms    82.0ms      11 494.1s
+          :util.blockchain-sync/create-tx-outputs_1       6,000    10.0ms    948.0ms    53.0ms    80.0ms      10 479.1s
+       :util.blockchain-sync/connect-tx-to-blocks_1       6,000     9.0ms    929.0ms    50.0ms    75.0ms      10 451.1s
+:util.blockchain-sync/connect-tx-inputs-immediate_1       6,000     4.0ms    942.0ms    52.0ms    74.0ms      10 446.3s
+          :util.blockchain-sync/connect-remaining_1       6,000     9.0ms    376.0ms    19.0ms    50.0ms       6 299.3s
+              :util.blockchain-sync/extract-info-tx     435,480     7.0μs    248.0ms    24.0μs    34.0μs       0 14.9s
+        :util.blockchain-sync/extract-info-tx-input     623,831     1.0μs     72.0ms     3.0μs     4.0μs       0 2.7s
+             :util.blockchain-sync/extract-info-blk     120,000     3.0μs     82.0ms     8.0μs    11.0μs       0 1.3s
+                                   :timbre/stats-gc           9    74.0ms    248.0ms    44.0ms   136.0ms       0 1.2s
+          :util.blockchain-sync/create-tx-indexes_1           1   783.0ms    783.0ms       0ns   783.0ms       0 783.0ms
+    :util.blockchain-sync/create-blk-type-indexes_1           1    26.0ms     26.0ms       0ns    26.0ms       0 26.0ms
+     :util.blockchain-sync/create-tx-type-indexes_1           1    20.0ms     20.0ms       0ns    20.0ms       0 20.0ms
+                                         Clock Time                                                          100 4668.5s
+                                     Accounted Time                                                           94 4379.3s
